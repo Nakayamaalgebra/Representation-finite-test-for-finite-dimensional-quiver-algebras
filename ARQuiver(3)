@@ -1,0 +1,109 @@
+DeclareOperation("AuxiliaryProgramForARQuiver", [IsPathAlgebraMatModule]);
+
+InstallMethod(AuxiliaryProgramForARQuiver,
+    "for a representation of a quiver",
+    [IsPathAlgebraMatModule],
+    0,
+    function(M)
+
+        local rightAlmostSplit, leftAlmostSplit, sourceSummands, dualSourceSummands,
+              transposedModule, combinedList, sourceModules, dualModules,
+              finalList, dim;
+
+        dim := Dimension(RightActingAlgebra(M));
+        sourceSummands := [];
+        dualSourceSummands := [];
+        combinedList := [];
+        if IsList(AlmostSplitSequence(M)) then
+            rightAlmostSplit := AlmostSplitSequence(M);
+            sourceModules := DecomposeModule(Source(rightAlmostSplit[2]));
+            Append(sourceSummands, sourceModules);
+            Append(sourceSummands, [Source(rightAlmostSplit[1])]);
+        else
+            sourceSummands := [M];
+        fi;
+        transposedModule := TrD(M);
+        if IsList(AlmostSplitSequence(transposedModule)) then
+            leftAlmostSplit := AlmostSplitSequence(transposedModule);
+            dualModules := DecomposeModule(Source(leftAlmostSplit[2]));
+            Append(dualSourceSummands, dualModules);
+            Append(dualSourceSummands, [transposedModule]);
+        else
+            dualSourceSummands := [transposedModule];
+        fi;
+        Append(combinedList, sourceSummands);
+        Append(combinedList, dualSourceSummands);
+        finalList := Filtered(combinedList, x -> Size(x) <> 1);
+        return finalList;
+    end
+);
+
+
+
+DeclareOperation("ARQuiver", [IsQuiverAlgebra, IsInt]);
+
+InstallMethod(ARQuiver,
+    "for a quiver algebra and a bound",
+    [IsQuiverAlgebra, IsInt],
+    0,
+    function(A,n)
+
+        local simples, currentModules, nextModules, pos, 
+              combinedModules, module, temp, dimensions,
+              counter, dimA, projModules, injModules, 
+              indecomposables, moduleDim, i, 
+              directSum, basicModule;
+
+        simples := SimpleModules(A);
+        currentModules := [simples[1]];
+        counter := 1;
+        dimA := Dimension(A);
+        while counter <= Size(currentModules) and Size(currentModules) <= n do
+            Print("Current module list: "); Print(currentModules); Print("\n");
+            nextModules := AuxiliaryProgramForARQuiver(currentModules[counter]);
+            dimensions := List(nextModules, x -> Dimension(x));
+            moduleDim := Maximum(dimensions);
+            if moduleDim >= Maximum(2 * dimA, 30) then
+                Print("The algebra A is representation-infinite!\n");
+                # We use here the result by Bongartz that if there is an 
+                # indecomposable A-module M with dim M>max(2*dimA,30), then
+                # the algebra A is representation-infinite. The first Brauer-Thrall 
+                # conjecture ensures that the algorithm always stops as 
+                # there are modules of arbitrarily large dimension in every 
+                # component of a representation-infinite algebra 
+                # and an algebra is representation-finite if and only if there is 
+                # a unique finite AR-component.
+                pos := Position(dimensions,moduleDim);
+                Print("An A-module with critical dimension will be returned.\n");
+                return nextModules[pos];
+            fi;
+            # Remove modules already in current list
+            for module in currentModules do
+                nextModules := Filtered(nextModules, x -> not IsomorphicModules(module, x));
+            od;
+            Append(currentModules, nextModules);
+            Print("Updated module list: "); Print(currentModules); Print("\n");
+            Print("List size: "); Print(Size(currentModules)); Print("\n");
+            counter := counter + 1;
+        od;
+        if Size(currentModules) > n then
+            Print("Upper bound of indecomposable modules reached. Count: "); Print(Size(currentModules)); Print(".\n");     
+            Print("A list containing the so far computed indecomposable A-modules will be returned: "); Print("\n");
+            return currentModules;
+        fi;
+        Print("The algebra A is representation-finite!\n");
+        Print("We are almost done with the computation of the indecomposable A-modules... Please wait.\n");
+        projModules := IndecProjectiveModules(A);
+        injModules := IndecInjectiveModules(A);
+        Append(currentModules, projModules);
+        Append(currentModules, injModules);
+        directSum := DirectSumOfQPAModules(currentModules);
+        basicModule := BasicVersionOfModule(directSum);
+        indecomposables := DecomposeModule(basicModule);
+        Print("Result: ");
+        return [Size(indecomposables), indecomposables];
+    end
+);
+# Example: A := NakayamaAlgebra([9,9,9,9,9], GF(3)); ARQ := ARQuiver(A,100);
+
+
